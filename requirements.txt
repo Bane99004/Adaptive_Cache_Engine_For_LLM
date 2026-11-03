@@ -1,0 +1,24 @@
+# Auto-generated from requirements.py — Adaptive Cache Management Dependencies
+# To regenerate: python requirements.py --generate
+
+# --- CORE ---
+pydantic>=2.6.0  # Data validation and settings management schemas
+
+# --- API ---
+fastapi>=0.110.0  # High-performance async web framework for REST API
+uvicorn[standard]>=0.27.0  # Production-grade ASGI web server implementation
+
+# --- AGENT ---
+openai>=1.12.0  # Official client for LLM-based tool selection and reasoning
+
+# --- DASHBOARD ---
+streamlit>=1.30.0  # Interactive dashboard UI for chat, metrics, and benchmark graphs
+httpx>=0.27.0  # HTTP client for Streamlit dashboard to communicate with API
+
+# --- BENCHMARK ---
+pandas>=2.2.0  # Data processing and CSV/JSON output generation for benchmarks
+
+# --- DEV ---
+pytest>=8.0.0  # Test framework for unit tests and integration tests
+
+
