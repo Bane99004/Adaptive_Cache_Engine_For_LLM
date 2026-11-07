@@ -49,3 +49,8 @@ htmlcov/
 
 # Streamlit runtime
 .streamlit/secrets.toml
+adaptive.py
+base.py
+lfu.py
+lru.py
+metrics.py

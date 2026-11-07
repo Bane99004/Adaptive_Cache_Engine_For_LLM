@@ -7,14 +7,14 @@ Dashboard (Streamlit)
 L5  api.py                routes only, no logic
         │
         ├──────────────► L6  benchmark/     (skips the LLM, calls L4 directly)
-        ▼                        │
-L4  agent/                       │
+        ▼                         
+L4  agent/                        │
     executor.py  ◄───────────────┘
         │            │
-        ▼            ▼
+        ▼           ▼
 L2  cache/manager   L3  tools/
         │                │
-        ▼                ▼
+        ▼               ▼
 L1  cache/ (LRU, LFU,   SQLite catalog
     Adaptive, metrics)
         │

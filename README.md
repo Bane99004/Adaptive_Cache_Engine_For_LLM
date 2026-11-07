@@ -18,7 +18,13 @@ Adaptive_Cache_Management/
 │   ├── __init__.py
 │   └── cache_models.py
 ├── cache/                         # L1 & L2: Cache core algorithms and manager
-│   └── __init__.py
+│   ├── __init__.py
+│   ├── base.py                    #   Abstract BaseCache interface
+│   ├── dll.py                     #   Doubly linked list (internal helper for LRU)
+│   ├── metrics.py                 #   Hit/miss/eviction counters
+│   ├── lru.py                     #   LRU eviction policy
+│   ├── lfu.py                     #   LFU eviction policy
+│   └── adaptive.py                #   Self-tuning policy (switches LRU ↔ LFU)
 ├── tools/                         # L3: Deterministic tools & SQLite catalog
 │   └── __init__.py
 ├── agent/                         # L4: Agent and tool executor
@@ -71,7 +77,20 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
    source .venv/bin/activate
    ```
 
-2. **Verify L0 Installation & Imports:**
+2. **Verify L0 & L1 Imports:**
    ```bash
-   .venv/bin/python -c "from config import CacheConfig, CachePolicy, default_config; from models import CacheResult, ToolTrace; print('L0 verification passed')"
+   .venv/bin/python -c "from config import CacheConfig, CachePolicy, default_config; from models import CacheResult, ToolTrace; from cache import LRUCache, LFUCache, AdaptiveCache; print('L0 + L1 verification passed')"
    ```
+
+## Current Status
+
+| Layer | Status |
+|-------|--------|
+| **L0** Shared (config, models) | ✅ Complete |
+| **L1** Cache core (LRU, LFU, Adaptive, Metrics) | ✅ Complete |
+| **L2** Cache manager | 🔲 Pending |
+| **L3** Tools | 🔲 Pending |
+| **L4** Agent | 🔲 Pending |
+| **L5** API | 🔲 Pending |
+| **L6** Benchmark | 🔲 Pending |
+| **L7** Dashboard | 🔲 Pending |
