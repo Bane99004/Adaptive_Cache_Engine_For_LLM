@@ -95,3 +95,107 @@
 - [x] Step 7: Updated cache/__init__.py with public exports
 - [x] Step 8: All functional tests passed (DLL, LRU, LFU, Adaptive switching, Metrics, BaseCache enforcement)
 - [x] Step 9: Updated README.md with L1 file tree and status
+
+=== L1 ADAPTIVE REWORK: SHARED STORAGE + SHADOW SIMULATORS ===
+
+## Problem
+- Shadow LRU and LFU each store their own copy of cached data
+- One shadow may contain keys the active cache evicted → phantom hits
+- Dual storage wastes memory and causes inconsistent behavior
+
+## New Architecture
+- SharedStorage: one real cache (LRU or LFU) holds actual key-value pairs
+- LRU Shadow: lightweight LRUCache(capacity) storing True as values (key presence only)
+- LFU Shadow: lightweight LFUCache(capacity) storing True as values (key presence only)
+- AdaptiveController: compares shadow sliding-window hit rates every 200 ops
+- Switch only if the other policy is better by >= 5 percentage points
+- Real cache reconstruction on switch: NOT YET IMPLEMENTED (explain approach after)
+
+## Steps
+1. Rework adaptive.py with shared storage + shadow architecture
+2. Real cache = LRUCache or LFUCache (active policy) with actual values
+3. Shadows = LRUCache + LFUCache with value=True (presence markers)
+4. Both shadows see every get/put for independent simulation
+5. _evaluate compares shadow window rates with switch_threshold (0.05)
+6. _pending_switch flags recommended switch without executing it
+7. Verify with tests
+
+## Adaptive Rework Completion
+- [x] Shared storage: single real cache (LRU or LFU) holds actual values
+- [x] Shadow simulators: LRU + LFU shadows store True (key presence only)
+- [x] Sliding-window hit rates per shadow (not cumulative)
+- [x] Switch threshold: only recommend switch if other policy is better by >= 5pp
+- [x] _pending_switch flags recommendation without executing
+- [x] _rebase_shadows() syncs shadows from real cache state
+- [x] shadow_stats property for observability
+- [x] All 9 tests passed
+- [ ] TODO: Real cache reconstruction on policy switch (approach below)
+
+=== RECONSTRUCTION IMPLEMENTATION ===
+
+## Changes needed:
+1. LRUCache: add items() (non-mutating) + _restore(key, value) (no metrics)
+2. LFUCache: add items() + _restore(key, value, freq) + get_freq(key)
+3. AdaptiveCache:
+   - Track _key_meta per entry: {freq, last_access}
+   - Update metadata on every get/put, remove on eviction
+   - _execute_switch(): snapshot → sort by last_access → create new cache → refill with _restore (preserves freq, skips metrics) → swap → rebase shadows → warm-up
+   - _warmup_remaining suppresses evaluation for one window after switch
+   - Automatic execution when _evaluate detects switch
+4. Verify with phase-change test that triggers a real switch
+
+## Reconstruction Implementation — Complete
+- [x] LRU: added items() and _restore(key, value) — no metrics
+- [x] LFU: added items(), get_freq(key), _restore(key, value, freq) — preserves freq, no metrics
+- [x] Adaptive: _key_meta tracks per-key {freq, last_access} updated on every get/put
+- [x] Adaptive: _execute_switch() — 7-step snapshot-sort-create-refill-swap-rebase-warmup
+- [x] Adaptive: warm-up suppresses evaluation for one window after switch
+- [x] Adaptive: switch_history for observability
+- [x] Freq restoration verified: high-freq keys survive eviction after LRU→LFU switch
+- [x] Automatic switch triggered by workload phase change
+- [x] Round-trip LFU→LRU also preserves keys and values
+- [x] Refill does NOT count as real traffic (uses _restore, skips metrics)
+- [x] All 10 tests passed
+
+=== STEP TRACKING: README SYNC & L2 CACHE MANAGER BUILD ===
+
+## Step 1: Update README.md
+- Bring README.md fully in sync with current project state (including L1 Adaptive Cache architecture with shared storage and shadow simulators).
+- Ensure quick-start verification commands are up to date.
+
+## Step 2: Plan L2 Cache Manager (cache/manager.py)
+- Review specifications from Project.md and architectural boundaries.
+- Define CacheManager responsibility:
+  1. Key generation: Deterministic hashing/serialization of tool name + canonical sorted JSON arguments.
+  2. TTL enforcement: Wrap entries with timestamp/expiry (e.g. CacheEntry dataclass or tuple) or check TTL on lookup.
+  3. Policy selection: Support NONE (bypass cache), LRU, LFU, and ADAPTIVE policies using CacheConfig.
+  4. Config management: Runtime update via update_config(config), policy switching, and clear/reset cache.
+  5. Lookup and Store interface:
+     - lookup(tool: str, args: dict) -> (hit: bool, value: Any | None, latency_ms: float) or CacheResult
+     - store(tool: str, args: dict, value: Any) -> None
+  6. Statistics: Expose stats() returning hit_rate, hits, misses, evictions, size, active_policy, shadow_stats, etc.
+  7. Strict boundary: Does NOT execute tools. Pure cache management only.
+
+## Step 3: Implement L2 (cache/manager.py) & Update cache/__init__.py
+- Implement CacheEntry and CacheManager in cache/manager.py.
+- Export CacheManager in cache/__init__.py.
+
+## Step 4: Verification & Testing
+- Unit and integration tests covering:
+  - Deterministic key creation (different dict key orders produce same cache key).
+  - Policy routing (NONE, LRU, LFU, ADAPTIVE).
+  - TTL expiration (expired entries count as miss).
+  - Runtime config updates (changing capacity, TTL, policy).
+  - stats() reporting.
+
+## Step 5: Update README.md and Completion Log
+- Update README.md with L2 status and usage examples.
+- Update build_steps.md completion log.
+
+## L2 Completion Log
+- [x] Step 1: Updated and synchronized README.md with the latest architecture.
+- [x] Step 2: Planned L2 CacheManager architecture and boundaries according to Project.md.
+- [x] Step 3: Implemented cache/manager.py (deterministic key generation, TTL handling, policy routing for NONE/LRU/LFU/ADAPTIVE, dynamic config updates, and telemetry stats).
+- [x] Step 4: Exported CacheManager in cache/__init__.py.
+- [x] Step 5: Verified with comprehensive test suite (all 7 tests passed: key determinism, lookup/store, TTL expiry, NONE policy bypass, dynamic update_config, Adaptive stats, clear/reset).
+- [x] Step 6: Updated README.md status table marking L2 as Complete.

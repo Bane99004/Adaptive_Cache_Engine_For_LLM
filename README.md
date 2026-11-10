@@ -24,7 +24,8 @@ Adaptive_Cache_Management/
 │   ├── metrics.py                 #   Hit/miss/eviction counters
 │   ├── lru.py                     #   LRU eviction policy
 │   ├── lfu.py                     #   LFU eviction policy
-│   └── adaptive.py                #   Self-tuning policy (switches LRU ↔ LFU)
+│   ├── adaptive.py                #   Adaptive Cache (Shared storage + Shadow simulators + Reconstruction)
+│   └── manager.py                 #   L2: Cache Manager (Key building, TTL, policy routing, stats)
 ├── tools/                         # L3: Deterministic tools & SQLite catalog
 │   └── __init__.py
 ├── agent/                         # L4: Agent and tool executor
@@ -48,13 +49,24 @@ Adaptive_Cache_Management/
 | Layer | Directory / Files | Responsibility | Boundary |
 |-------|-------------------|----------------|----------|
 | **L0** Shared | `config/`, `models/` | Capacity, TTL, window size, thresholds, tool delay. Dataclasses `CacheResult`, `ToolTrace`. | Pure data definitions; no logic. |
-| **L1** Cache core | `cache/` (dll, lru, lfu, adaptive, metrics) | Pure data structures: `get(key)`, `put(key, val)`, `keys()`, `size()`. Metrics for hits, misses, evictions. | No knowledge of tools, TTL, HTTP, or LLMs. |
-| **L2** Cache manager | `cache/manager.py` | Key serialization, TTL enforcement, policy routing, stats. | Does not execute tools; answers hit/miss. |
+| **L1** Cache core | `cache/` (dll, lru, lfu, adaptive, metrics) | Pure data structures: `get(key)`, `put(key, val)`, `keys()`, `size()`. Metrics for hits, misses, evictions. | No knowledge of tools, TTL, HTTP, or LLMs. A string key in, value out. |
+| **L2** Cache manager | `cache/manager.py` | Builds deterministic keys (tool + sorted JSON args), applies TTL, selects policy (NONE/LRU/LFU/ADAPTIVE), handles config updates/resets, exposes `stats()`. | Does not execute tools; answers hit/miss and stores values. |
 | **L3** Tools | `tools/` (catalog, calculator, registry) | SQLite catalog queries (with simulated delay), math expressions, argument validation. | Pure & deterministic; unaware of cache. |
 | **L4** Execution + Agent | `agent/` (executor, agent) | Cache lookup -> miss fallback -> execute -> store. LLM agent reasoning with fallback. | LLM calls isolated here. |
 | **L5** API | `api/` (routers, schemas) | `/chat`, `/stats`, `/config`, `/cache`, `/benchmark`, `/health`. | HTTP parsing and dispatch only; no business logic. |
 | **L6** Benchmark | `benchmark/` (workloads, runner, results) | Generates Hot Keys, Sequential Scan, Phase Change workloads; replays across policies. | Repeatable; never calls LLM. |
 | **L7** Dashboard | `dashboard/app.py` | Chat view, hit/miss badges, live telemetry, and charts. | Consumes API only. |
+
+## L1 Adaptive Cache Architecture
+
+The `AdaptiveCache` implements a **Shared Storage + Shadow Simulators + Frequency Preservation Reconstruction** pattern:
+1. **Single Real Storage**: Only one real cache (`LRUCache` or `LFUCache`) stores actual values.
+2. **Shadow Simulators**: Two lightweight shadow caches (`LRUCache` and `LFUCache` storing key presence markers) independently simulate what each policy would retain.
+3. **Sliding-Window Evaluation**: Evaluates per-shadow hit rates over a sliding window (default `window_size = 200`) and requires a significance threshold (default `switch_threshold = 0.05` / 5 percentage points) before switching.
+4. **Reconstruction on Switch**:
+   - Snapshots current real cache entries along with historical metadata (`freq` and `last_access`).
+   - Recreates the target cache and refills using non-traffic `_restore()`, preserving frequency counts and FIFO tie-breaking without polluting metrics.
+   - Rebases shadows to maintain synchronization with real cache state.
 
 ## Dependency Management (`requirements.py` & `requirements.txt`)
 
@@ -77,9 +89,9 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
    source .venv/bin/activate
    ```
 
-2. **Verify L0 & L1 Imports:**
+2. **Verify L0, L1 & L2 Core:**
    ```bash
-   .venv/bin/python -c "from config import CacheConfig, CachePolicy, default_config; from models import CacheResult, ToolTrace; from cache import LRUCache, LFUCache, AdaptiveCache; print('L0 + L1 verification passed')"
+   .venv/bin/python -c "from config import CacheConfig, CachePolicy, default_config; from models import CacheResult, ToolTrace; from cache import LRUCache, LFUCache, AdaptiveCache, CacheManager; print('L0 + L1 + L2 verification passed')"
    ```
 
 ## Current Status
@@ -88,7 +100,7 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
 |-------|--------|
 | **L0** Shared (config, models) | ✅ Complete |
 | **L1** Cache core (LRU, LFU, Adaptive, Metrics) | ✅ Complete |
-| **L2** Cache manager | 🔲 Pending |
+| **L2** Cache manager | ✅ Complete |
 | **L3** Tools | 🔲 Pending |
 | **L4** Agent | 🔲 Pending |
 | **L5** API | 🔲 Pending |
