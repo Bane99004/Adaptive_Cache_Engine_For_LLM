@@ -49,4 +49,3 @@ htmlcov/
 
 # Streamlit runtime
 .streamlit/secrets.toml
-manager.py
