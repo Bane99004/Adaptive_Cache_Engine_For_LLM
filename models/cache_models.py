@@ -47,4 +47,3 @@ class ToolTrace:
     cache_hit: bool
     latency_ms: float
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-

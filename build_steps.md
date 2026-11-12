@@ -244,3 +244,61 @@
 - Stripped unnecessary complexity while keeping builtins restricted.
 - [x] Simplified calculator.py: removed unnecessary AST tree traversal, keeping it simple, clean, and efficient.
 - [x] All calculator and registry tests verified.
+
+=== STEP TRACKING: L4 EXECUTION & AGENT BUILD ===
+
+## Step 1: Architectural Design & Plan for L4
+- L4 consists of two main responsibilities:
+  1. Tool Execution Engine (agent/executor.py):
+     - Takes tool name and arguments.
+     - Performs lookup on L2 CacheManager.
+     - On cache hit: returns cached value with ToolTrace(cache_hit=True).
+     - On cache miss: executes tool via L3 ToolRegistry, stores result in L2 CacheManager, returns value with ToolTrace(cache_hit=False).
+     - Records wall-clock latency (ms).
+  2. Agent Layer (agent/agent.py, agent/prompts.py, agent/fallback.py):
+     - agent/prompts.py: Keeps prompt templates and system prompts cleanly separated from logic (per CLAUDE.md).
+     - agent/fallback.py: Deterministic rule-based tool selector when LLM is unavailable or fails.
+     - agent/agent.py: Orchestrates chat interaction:
+       * Takes user message.
+       * Uses LLM (or rule-based fallback if LLM is unavailable/fails) to pick tool and arguments.
+       * Invokes ToolExecutor.run(tool, args).
+       * Builds user-facing answer with execution metadata {answer, tool, hit, latency_ms}.
+  3. Schemas/Models:
+     - ChatResponse dataclass in agent/schemas.py (separating schemas from logic per CLAUDE.md).
+
+## Step 2: Implement agent/schemas.py
+- ChatResponse dataclass: answer, tool, args, hit, latency_ms, trace.
+
+## Step 3: Implement agent/executor.py
+- ToolExecutor: accepts cache_manager (L2) and registry (L3).
+- run(tool: str, args: dict[str, Any]) -> tuple[Any, ToolTrace].
+
+## Step 4: Implement agent/prompts.py
+- System prompts, tool descriptions, and response formatting templates.
+
+## Step 5: Implement agent/fallback.py
+- Rule-based parser for calculator expressions and catalog search queries.
+
+## Step 6: Implement agent/agent.py
+- Agent class: chat(msg: str) -> ChatResponse.
+- Graceful LLM integration with automatic rule-based fallback.
+
+## Step 7: Update agent/__init__.py and Comprehensive Verification Tests
+- Test ToolExecutor cache miss -> tool execution -> cache store -> cache hit cycle.
+- Test Agent chat with calculation questions ("what is 25 * 4").
+- Test Agent chat with product catalog search ("find electronics under 300").
+- Test Agent chat with conversational greeting ("hello").
+- Test end-to-end integration across L0 -> L1 -> L2 -> L3 -> L4.
+
+## Step 8: Update README.md and Completion Log
+
+## L4 Completion Log
+- [x] Step 1: Planned L4 Execution and Agent Layer following strict modular separation.
+- [x] Step 2: Implemented agent/schemas.py (ChatResponse dataclass isolated from logic).
+- [x] Step 3: Implemented agent/executor.py (ToolExecutor coordinating cache lookup, L3 registry invocation on miss, and cache storage).
+- [x] Step 4: Implemented agent/prompts.py (System prompts and response formatting isolated from code).
+- [x] Step 5: Implemented agent/fallback.py (Deterministic rule-based tool and argument selector for math and catalog queries when LLM is offline or unconfigured).
+- [x] Step 6: Implemented agent/agent.py (Agent orchestrating chat flow: LLM tool selection with fallback -> ToolExecutor -> answer formatting).
+- [x] Step 7: Exported L4 components in agent/__init__.py.
+- [x] Step 8: Verified with comprehensive test suite (all tests passed: ToolExecutor hit/miss cycles, catalog latency reduction from ~300ms to <1ms, rule-based fallback matching, agent math/catalog/conversational chat, and telemetry stats).
+- [x] Step 9: Updated README.md marking L4 as Complete.

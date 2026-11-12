@@ -32,7 +32,12 @@ Adaptive_Cache_Management/
 │   ├── calculator.py              #   Safe AST-based arithmetic expression evaluator
 │   └── registry.py                #   Tool registry, schema discovery, and argument validation
 ├── agent/                         # L4: Agent and tool executor
-│   └── __init__.py
+│   ├── __init__.py
+│   ├── executor.py                #   ToolExecutor (cache lookup -> miss execution -> cache store)
+│   ├── agent.py                   #   Agent (LLM chat orchestration with automatic fallback)
+│   ├── fallback.py                #   Rule-based pattern matching fallback tool selector
+│   ├── prompts.py                 #   System prompts, templates, and formatting (isolated from logic)
+│   └── schemas.py                 #   ChatResponse schemas (isolated from logic)
 ├── api/                           # L5: Modular API routes and handlers
 │   └── __init__.py
 ├── benchmark/                     # L6: Deterministic workload replay & metrics
@@ -92,9 +97,9 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
    source .venv/bin/activate
    ```
 
-2. **Verify Core Layers (L0 - L3):**
+2. **Verify Core Layers (L0 - L4):**
    ```bash
-   .venv/bin/python -c "from config import CacheConfig, default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate, DEFAULT_REGISTRY; print('L0 + L1 + L2 + L3 verification passed')"
+   .venv/bin/python -c "from config import default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate; from agent import Agent, ToolExecutor; print('L0 + L1 + L2 + L3 + L4 verification passed')"
    ```
 
 ## Current Status
@@ -105,7 +110,7 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
 | **L1** Cache core (LRU, LFU, Adaptive, Metrics) | ✅ Complete |
 | **L2** Cache manager | ✅ Complete |
 | **L3** Tools | ✅ Complete |
-| **L4** Agent | 🔲 Pending |
+| **L4** Agent | ✅ Complete |
 | **L5** API | 🔲 Pending |
 | **L6** Benchmark | 🔲 Pending |
 | **L7** Dashboard | 🔲 Pending |
