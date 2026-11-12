@@ -27,7 +27,10 @@ Adaptive_Cache_Management/
 │   ├── adaptive.py                #   Adaptive Cache (Shared storage + Shadow simulators + Reconstruction)
 │   └── manager.py                 #   L2: Cache Manager (Key building, TTL, policy routing, stats)
 ├── tools/                         # L3: Deterministic tools & SQLite catalog
-│   └── __init__.py
+│   ├── __init__.py
+│   ├── catalog.py                 #   SQLite product catalog with simulated delay
+│   ├── calculator.py              #   Safe AST-based arithmetic expression evaluator
+│   └── registry.py                #   Tool registry, schema discovery, and argument validation
 ├── agent/                         # L4: Agent and tool executor
 │   └── __init__.py
 ├── api/                           # L5: Modular API routes and handlers
@@ -89,9 +92,9 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
    source .venv/bin/activate
    ```
 
-2. **Verify L0, L1 & L2 Core:**
+2. **Verify Core Layers (L0 - L3):**
    ```bash
-   .venv/bin/python -c "from config import CacheConfig, CachePolicy, default_config; from models import CacheResult, ToolTrace; from cache import LRUCache, LFUCache, AdaptiveCache, CacheManager; print('L0 + L1 + L2 verification passed')"
+   .venv/bin/python -c "from config import CacheConfig, default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate, DEFAULT_REGISTRY; print('L0 + L1 + L2 + L3 verification passed')"
    ```
 
 ## Current Status
@@ -101,7 +104,7 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
 | **L0** Shared (config, models) | ✅ Complete |
 | **L1** Cache core (LRU, LFU, Adaptive, Metrics) | ✅ Complete |
 | **L2** Cache manager | ✅ Complete |
-| **L3** Tools | 🔲 Pending |
+| **L3** Tools | ✅ Complete |
 | **L4** Agent | 🔲 Pending |
 | **L5** API | 🔲 Pending |
 | **L6** Benchmark | 🔲 Pending |

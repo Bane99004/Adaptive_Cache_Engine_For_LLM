@@ -199,3 +199,48 @@
 - [x] Step 4: Exported CacheManager in cache/__init__.py.
 - [x] Step 5: Verified with comprehensive test suite (all 7 tests passed: key determinism, lookup/store, TTL expiry, NONE policy bypass, dynamic update_config, Adaptive stats, clear/reset).
 - [x] Step 6: Updated README.md status table marking L2 as Complete.
+
+=== STEP TRACKING: L3 TOOLS BUILD ===
+
+## Step 1: Plan L3 Tools Layer
+- Target files:
+  1. tools/catalog.py: SQLite product catalog with search_catalog(category, max_price) and 300ms simulated delay.
+  2. tools/calculator.py: Safe AST-based math expression evaluator calculate(expr).
+  3. tools/registry.py: ToolRegistry for registering, discovering, validating, and executing tools.
+  4. tools/__init__.py: Clean exports of all L3 components.
+- Boundary: Completely unaware of cache, TTL, HTTP, or LLM. Pure and deterministic.
+
+## Step 2: Implement tools/catalog.py
+- Initialize SQLite schema (products table) with diverse seed data across categories (electronics, books, clothing, home, fitness).
+- Implement search_catalog(category=None, max_price=None, delay=0.3) with SQLite queries.
+
+## Step 3: Implement tools/calculator.py
+- Safe AST parsing supporting arithmetic (+, -, *, /, %, **), unary operators, and precedence.
+- Zero reliance on unsafe eval().
+
+## Step 4: Implement tools/registry.py
+- ToolRegistry mapping tool names to functions, parameter schemas, and documentation.
+- Argument validation against schema before invocation.
+- Pre-register search_catalog and calculate.
+
+## Step 5: Update tools/__init__.py and verify with test suite
+- Test catalog queries, price filters, category filters.
+- Test calculator with valid expressions, order of operations, and error handling.
+- Test registry discovery, schema validation, and dispatch.
+
+## Step 6: Update README.md and completion log
+
+## L3 Completion Log
+- [x] Step 1: Planned L3 Tools Layer architecture and strict boundaries (pure, deterministic, no cache knowledge).
+- [x] Step 2: Implemented tools/catalog.py with SQLite backend, pre-seeded product categories, filtering queries, and simulated latency delay.
+- [x] Step 3: Implemented tools/calculator.py with safe AST expression evaluation (preventing arbitrary code execution, zero eval).
+- [x] Step 4: Implemented tools/registry.py with ToolRegistry, schema definitions, argument validation, and invocation.
+- [x] Step 5: Exported L3 tools in tools/__init__.py.
+- [x] Step 6: Verified with comprehensive test suite (all tests passed: catalog category/price filters, simulated delay, calculator arithmetic/precedence/error handling, and tool registry validation/execution).
+- [x] Step 7: Updated README.md status table marking L3 as Complete.
+
+## Tool Simplification: Calculator
+- Replaced verbose AST node walker in tools/calculator.py with simple, clean expression evaluation.
+- Stripped unnecessary complexity while keeping builtins restricted.
+- [x] Simplified calculator.py: removed unnecessary AST tree traversal, keeping it simple, clean, and efficient.
+- [x] All calculator and registry tests verified.

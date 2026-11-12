@@ -1,9 +1,21 @@
 """
 L3 — Tools Layer
 
-Contains:
-- SQLite product catalog queries with simulated delay
-- Calculator utility
-- Tool registry mapping names to functions with argument validation
+Exports:
+- Product catalog: ProductCatalog, search_catalog
+- Calculator: calculate
+- Registry: ToolDefinition, ToolRegistry, DEFAULT_REGISTRY
 """
 
+from tools.calculator import calculate
+from tools.catalog import ProductCatalog, search_catalog
+from tools.registry import DEFAULT_REGISTRY, ToolDefinition, ToolRegistry
+
+__all__ = [
+    "ProductCatalog",
+    "search_catalog",
+    "calculate",
+    "ToolDefinition",
+    "ToolRegistry",
+    "DEFAULT_REGISTRY",
+]
