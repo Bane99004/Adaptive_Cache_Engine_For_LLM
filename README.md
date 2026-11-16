@@ -39,7 +39,16 @@ Adaptive_Cache_Management/
 │   ├── prompts.py                 #   System prompts, templates, and formatting (isolated from logic)
 │   └── schemas.py                 #   ChatResponse schemas (isolated from logic)
 ├── api/                           # L5: Modular API routes and handlers
-│   └── __init__.py
+│   ├── __init__.py                #   ASGI app export (`uvicorn api:app`)
+│   ├── app.py                     #   FastAPI application factory and CORS middleware
+│   ├── schemas.py                 #   Pydantic v2 request/response schemas (isolated from logic)
+│   ├── dependencies.py            #   Dependency injection for CacheManager and Agent singletons
+│   └── routers/                   #   Modular endpoint routers (routes only, no business logic)
+│       ├── __init__.py
+│       ├── health.py              #   GET /health
+│       ├── chat.py                #   POST /chat
+│       ├── cache.py               #   GET /stats, PUT /config, DELETE /cache
+│       └── benchmark.py           #   POST /benchmark
 ├── benchmark/                     # L6: Deterministic workload replay & metrics
 │   └── __init__.py
 ├── dashboard/                     # L7: Streamlit dashboard interface
@@ -97,9 +106,14 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
    source .venv/bin/activate
    ```
 
-2. **Verify Core Layers (L0 - L4):**
+2. **Verify Core Layers (L0 - L5):**
    ```bash
-   .venv/bin/python -c "from config import default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate; from agent import Agent, ToolExecutor; print('L0 + L1 + L2 + L3 + L4 verification passed')"
+   .venv/bin/python -c "from config import default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate; from agent import Agent, ToolExecutor; from api import app; print('L0 + L1 + L2 + L3 + L4 + L5 verification passed')"
+   ```
+
+3. **Run the API Server:**
+   ```bash
+   .venv/bin/uvicorn api:app --reload --port 8000
    ```
 
 ## Current Status
@@ -111,6 +125,6 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
 | **L2** Cache manager | ✅ Complete |
 | **L3** Tools | ✅ Complete |
 | **L4** Agent | ✅ Complete |
-| **L5** API | 🔲 Pending |
+| **L5** API | ✅ Complete |
 | **L6** Benchmark | 🔲 Pending |
 | **L7** Dashboard | 🔲 Pending |

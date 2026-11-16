@@ -1,8 +1,11 @@
 """
 L5 — API Layer
 
-Contains:
-- Modular FastAPI routers (/chat, /stats, /config, /cache, /benchmark, /health)
-- Request and response schemas separated from route definitions
+Exports:
+- app: Default ASGI FastAPI application instance (for `uvicorn api:app`)
+- create_app: Application factory function
 """
 
+from api.app import app, create_app
+
+__all__ = ["app", "create_app"]

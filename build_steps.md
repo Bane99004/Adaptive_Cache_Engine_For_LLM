@@ -302,3 +302,60 @@
 - [x] Step 7: Exported L4 components in agent/__init__.py.
 - [x] Step 8: Verified with comprehensive test suite (all tests passed: ToolExecutor hit/miss cycles, catalog latency reduction from ~300ms to <1ms, rule-based fallback matching, agent math/catalog/conversational chat, and telemetry stats).
 - [x] Step 9: Updated README.md marking L4 as Complete.
+
+=== STEP TRACKING: L5 API LAYER BUILD ===
+
+## Step 1: Architectural Design & Plan for L5
+- Follow CLAUDE.md modular repository structure:
+  - api/schemas.py: Pydantic v2 validation models kept strictly separate from routing logic.
+  - api/dependencies.py: Dependency injection for shared Agent and CacheManager instances.
+  - api/routers/: Modular APIRouters for health, chat, cache, and benchmark.
+  - api/app.py: FastAPI application setup with CORS and router registration.
+  - api.py (root level): Clean ASGI entry point as required by Project.md architecture.
+- Routes to implement (routes only, no business logic):
+  * POST /chat: Delegates to L4 agent.chat(msg) -> returns {answer, tool, args, hit, latency_ms}.
+  * GET /stats: Delegates to L2 cache_manager.stats().
+  * PUT /config: Updates L2 cache_manager with new CacheConfig parameters.
+  * DELETE /cache: Clears L2 cache_manager cache entries and resets metrics.
+  * POST /benchmark: Triggers L6 benchmark runner (or placeholder until L6 is built).
+  * GET /health: Health status and metadata.
+
+## Step 2: Implement api/schemas.py
+- Pydantic models with field validation, descriptions, and examples.
+
+## Step 3: Implement api/dependencies.py
+- Singletons / dependency providers for CacheManager, ToolExecutor, and Agent.
+
+## Step 4: Implement api/routers/
+- api/routers/health.py
+- api/routers/chat.py
+- api/routers/cache.py
+- api/routers/benchmark.py
+
+## Step 5: Implement api/app.py and root api.py
+- Combine routers into FastAPI app.
+- Provide root api.py exporting `app`.
+
+## Step 6: Test L5 API Endpoints
+- Test using FastAPI TestClient with httpx:
+  * GET /health -> 200 OK
+  * POST /chat -> 200 OK (verify hit=False on first query, hit=True on second query)
+  * GET /stats -> 200 OK
+  * PUT /config -> 200 OK (update policy/capacity)
+  * DELETE /cache -> 200 OK (clears cache)
+  * POST /benchmark -> 200 OK
+
+## Step 7: Update README.md and Completion Log
+
+## L5 Completion Log
+- [x] Step 1: Planned L5 API Layer strictly adhering to CLAUDE.md modular guidelines (routes only, no business logic, schemas and helpers isolated).
+- [x] Step 2: Implemented api/schemas.py (Pydantic v2 models for ChatRequest, ChatResponseSchema, ConfigUpdateRequest, StatsResponseSchema, CacheClearResponseSchema, BenchmarkRequest, HealthResponseSchema).
+- [x] Step 3: Implemented api/dependencies.py (Dependency injection providers for shared CacheManager and Agent).
+- [x] Step 4: Implemented modular routers in api/routers/:
+  * health.py: GET /health
+  * chat.py: POST /chat
+  * cache.py: GET /stats, PUT /config, DELETE /cache
+  * benchmark.py: POST /benchmark
+- [x] Step 5: Implemented api/app.py (FastAPI app factory, CORS middleware) and exported ASGI app in api/__init__.py (`uvicorn api:app`).
+- [x] Step 6: Verified with full API test suite via FastAPI TestClient (all 6 endpoint groups verified: health, chat miss/hit acceleration, stats telemetry, dynamic config update to LFU, cache clear, benchmark dispatch).
+- [x] Step 7: Updated README.md status table marking L5 as Complete and documented startup commands.
