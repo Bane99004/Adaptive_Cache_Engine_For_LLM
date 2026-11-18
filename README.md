@@ -29,7 +29,7 @@ Adaptive_Cache_Management/
 ├── tools/                         # L3: Deterministic tools & SQLite catalog
 │   ├── __init__.py
 │   ├── catalog.py                 #   SQLite product catalog with simulated delay
-│   ├── calculator.py              #   Safe AST-based arithmetic expression evaluator
+│   ├── calculator.py              #   Safe arithmetic expression evaluator
 │   └── registry.py                #   Tool registry, schema discovery, and argument validation
 ├── agent/                         # L4: Agent and tool executor
 │   ├── __init__.py
@@ -50,9 +50,16 @@ Adaptive_Cache_Management/
 │       ├── cache.py               #   GET /stats, PUT /config, DELETE /cache
 │       └── benchmark.py           #   POST /benchmark
 ├── benchmark/                     # L6: Deterministic workload replay & metrics
-│   └── __init__.py
+│   ├── __init__.py
+│   ├── workloads.py               #   Deterministic generators (Hot keys, Sequential scan, Phase change)
+│   ├── runner.py                  #   Benchmark runner across policies (NONE, LRU, LFU, ADAPTIVE)
+│   └── results.py                 #   Result metrics container and JSON/CSV/DataFrame exporters
 ├── dashboard/                     # L7: Streamlit dashboard interface
-│   └── __init__.py
+│   ├── __init__.py
+│   ├── config.py                  #   API URL, page settings, UI constants
+│   ├── api_client.py              #   HTTP client wrappers for all L5 endpoints
+│   ├── components.py              #   Reusable UI rendering functions (chat, stats, charts)
+│   └── app.py                     #   Main Streamlit application entry point
 ├── requirements.py                # Programmatic dependency registry & management
 ├── requirements.txt               # Exported standard requirements file
 ├── README.md                      # Project documentation and guide
@@ -106,15 +113,21 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
    source .venv/bin/activate
    ```
 
-2. **Verify Core Layers (L0 - L5):**
+2. **Verify All Layers (L0 - L7):**
    ```bash
-   .venv/bin/python -c "from config import default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate; from agent import Agent, ToolExecutor; from api import app; print('L0 + L1 + L2 + L3 + L4 + L5 verification passed')"
+   .venv/bin/python -c "from config import default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate; from agent import Agent, ToolExecutor; from api import app; from benchmark import run_benchmark; from dashboard.config import API_BASE_URL; print('L0-L7 verification passed')"
    ```
 
-3. **Run the API Server:**
+3. **Run the API Server (Terminal 1):**
    ```bash
    .venv/bin/uvicorn api:app --reload --port 8000
    ```
+
+4. **Run the Dashboard (Terminal 2):**
+   ```bash
+   .venv/bin/streamlit run dashboard/app.py
+   ```
+   The dashboard opens at `http://localhost:8501` and connects to the API at `http://localhost:8000`.
 
 ## Current Status
 
@@ -126,5 +139,5 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
 | **L3** Tools | ✅ Complete |
 | **L4** Agent | ✅ Complete |
 | **L5** API | ✅ Complete |
-| **L6** Benchmark | 🔲 Pending |
-| **L7** Dashboard | 🔲 Pending |
+| **L6** Benchmark | ✅ Complete |
+| **L7** Dashboard | ✅ Complete |

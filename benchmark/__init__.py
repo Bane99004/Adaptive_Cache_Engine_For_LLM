@@ -1,9 +1,27 @@
 """
 L6 — Benchmark Layer
 
-Contains:
-- Workload generators (Hot Keys, Sequential Scan, Phase Change)
-- Benchmark runner across all cache policies
-- Results collector and exporter (JSON/CSV)
+Exports:
+- Workloads: get_workload, generate_hot_keys_workload, generate_sequential_scan_workload, generate_phase_change_workload
+- Runner: run_benchmark
+- Results: BenchmarkRunResult, BenchmarkSuiteResult
 """
 
+from benchmark.results import BenchmarkRunResult, BenchmarkSuiteResult
+from benchmark.runner import run_benchmark
+from benchmark.workloads import (
+    generate_hot_keys_workload,
+    generate_phase_change_workload,
+    generate_sequential_scan_workload,
+    get_workload,
+)
+
+__all__ = [
+    "run_benchmark",
+    "get_workload",
+    "generate_hot_keys_workload",
+    "generate_sequential_scan_workload",
+    "generate_phase_change_workload",
+    "BenchmarkRunResult",
+    "BenchmarkSuiteResult",
+]

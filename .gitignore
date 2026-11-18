@@ -49,3 +49,8 @@ htmlcov/
 
 # Streamlit runtime
 .streamlit/secrets.toml
+.streamlit
+dashboard
+
+*.csv
+*.json
