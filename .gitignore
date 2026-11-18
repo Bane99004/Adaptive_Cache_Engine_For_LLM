@@ -50,7 +50,6 @@ htmlcov/
 # Streamlit runtime
 .streamlit/secrets.toml
 
-
 *.csv
 *.json
 claude.md

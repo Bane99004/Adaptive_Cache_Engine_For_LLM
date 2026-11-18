@@ -11,55 +11,58 @@ The system wraps tool calls (database queries, calculations, etc.) behind a **sm
 ```
 Adaptive_Cache_Management/
 ├── .venv/                         # uv virtual environment
-├── config/                        # L0: Configuration (schemas, defaults, policy enums)
-│   ├── __init__.py
-│   └── cache_config.py
-├── models/                        # L0: Shared dataclasses (CacheResult, ToolTrace)
-│   ├── __init__.py
-│   └── cache_models.py
-├── cache/                         # L1 & L2: Cache core algorithms and manager
-│   ├── __init__.py
-│   ├── base.py                    #   Abstract BaseCache interface
-│   ├── dll.py                     #   Doubly linked list (internal helper for LRU)
-│   ├── metrics.py                 #   Hit/miss/eviction counters
-│   ├── lru.py                     #   LRU eviction policy
-│   ├── lfu.py                     #   LFU eviction policy
-│   ├── adaptive.py                #   Adaptive Cache (Shared storage + Shadow simulators + Reconstruction)
-│   └── manager.py                 #   L2: Cache Manager (Key building, TTL, policy routing, stats)
-├── tools/                         # L3: Deterministic tools & SQLite catalog
-│   ├── __init__.py
-│   ├── catalog.py                 #   SQLite product catalog with simulated delay
-│   ├── calculator.py              #   Safe arithmetic expression evaluator
-│   └── registry.py                #   Tool registry, schema discovery, and argument validation
-├── agent/                         # L4: Agent and tool executor
-│   ├── __init__.py
-│   ├── executor.py                #   ToolExecutor (cache lookup -> miss execution -> cache store)
-│   ├── agent.py                   #   Agent (LLM chat orchestration with automatic fallback)
-│   ├── fallback.py                #   Rule-based pattern matching fallback tool selector
-│   ├── prompts.py                 #   System prompts, templates, and formatting (isolated from logic)
-│   └── schemas.py                 #   ChatResponse schemas (isolated from logic)
-├── api/                           # L5: Modular API routes and handlers
-│   ├── __init__.py                #   ASGI app export (`uvicorn api:app`)
-│   ├── app.py                     #   FastAPI application factory and CORS middleware
-│   ├── schemas.py                 #   Pydantic v2 request/response schemas (isolated from logic)
-│   ├── dependencies.py            #   Dependency injection for CacheManager and Agent singletons
-│   └── routers/                   #   Modular endpoint routers (routes only, no business logic)
+├── src/                           # Backend source packages (L0 - L6)
+│   ├── __init__.py                #   Backend package root and path resolution
+│   ├── config/                    #   L0: Configuration (schemas, defaults, policy enums)
+│   │   ├── __init__.py
+│   │   └── cache_config.py
+│   ├── models/                    #   L0: Shared dataclasses (CacheResult, ToolTrace)
+│   │   ├── __init__.py
+│   │   └── cache_models.py
+│   ├── cache/                     #   L1 & L2: Cache core algorithms and manager
+│   │   ├── __init__.py
+│   │   ├── base.py                #     Abstract BaseCache interface
+│   │   ├── dll.py                 #     Doubly linked list (internal helper for LRU)
+│   │   ├── metrics.py             #     Hit/miss/eviction counters
+│   │   ├── lru.py                 #     LRU eviction policy
+│   │   ├── lfu.py                 #     LFU eviction policy
+│   │   ├── adaptive.py            #     Adaptive Cache (Shared storage + Shadow simulators + Reconstruction)
+│   │   └── manager.py             #     L2: Cache Manager (Key building, TTL, policy routing, stats)
+│   ├── tools/                     #   L3: Deterministic tools & SQLite catalog
+│   │   ├── __init__.py
+│   │   ├── catalog.py             #     SQLite product catalog with simulated delay
+│   │   ├── calculator.py          #     Safe arithmetic expression evaluator
+│   │   └── registry.py            #     Tool registry, schema discovery, and argument validation
+│   ├── agent/                     #   L4: Agent and tool executor
+│   │   ├── __init__.py
+│   │   ├── executor.py            #     ToolExecutor (cache lookup -> miss execution -> cache store)
+│   │   ├── agent.py               #     Agent (LLM chat orchestration with automatic fallback)
+│   │   ├── fallback.py            #     Rule-based pattern matching fallback tool selector
+│   │   ├── prompts.py             #     System prompts, templates, and formatting (isolated from logic)
+│   │   └── schemas.py             #     ChatResponse schemas (isolated from logic)
+│   ├── api/                       #   L5: Modular API routes and handlers
+│   │   ├── __init__.py            #     ASGI app export
+│   │   ├── app.py                 #     FastAPI application factory and CORS middleware
+│   │   ├── schemas.py             #     Pydantic v2 request/response schemas (isolated from logic)
+│   │   ├── dependencies.py        #     Dependency injection for CacheManager and Agent singletons
+│   │   └── routers/               #     Modular endpoint routers (routes only, no business logic)
+│   │       ├── __init__.py
+│   │       ├── health.py          #     GET /health
+│   │       ├── chat.py            #     POST /chat
+│   │       ├── cache.py           #     GET /stats, PUT /config, DELETE /cache
+│   │       └── benchmark.py       #     POST /benchmark
+│   └── benchmark/                 #   L6: Deterministic workload replay & metrics
 │       ├── __init__.py
-│       ├── health.py              #   GET /health
-│       ├── chat.py                #   POST /chat
-│       ├── cache.py               #   GET /stats, PUT /config, DELETE /cache
-│       └── benchmark.py           #   POST /benchmark
-├── benchmark/                     # L6: Deterministic workload replay & metrics
-│   ├── __init__.py
-│   ├── workloads.py               #   Deterministic generators (Hot keys, Sequential scan, Phase change)
-│   ├── runner.py                  #   Benchmark runner across policies (NONE, LRU, LFU, ADAPTIVE)
-│   └── results.py                 #   Result metrics container and JSON/CSV/DataFrame exporters
+│       ├── workloads.py           #     Deterministic generators (Hot keys, Sequential scan, Phase change)
+│       ├── runner.py              #     Benchmark runner across policies (NONE, LRU, LFU, ADAPTIVE)
+│       └── results.py             #     Result metrics container and JSON/CSV/DataFrame exporters
 ├── dashboard/                     # L7: Streamlit dashboard interface
 │   ├── __init__.py
 │   ├── config.py                  #   API URL, page settings, UI constants
 │   ├── api_client.py              #   HTTP client wrappers for all L5 endpoints
 │   ├── components.py              #   Reusable UI rendering functions (chat, stats, charts)
 │   └── app.py                     #   Main Streamlit application entry point
+├── api.py                         # Root ASGI entrypoint forwarding to src.api.app
 ├── requirements.py                # Programmatic dependency registry & management
 ├── requirements.txt               # Exported standard requirements file
 ├── README.md                      # Project documentation and guide
@@ -72,13 +75,13 @@ Adaptive_Cache_Management/
 
 | Layer | Directory / Files | Responsibility | Boundary |
 |-------|-------------------|----------------|----------|
-| **L0** Shared | `config/`, `models/` | Capacity, TTL, window size, thresholds, tool delay. Dataclasses `CacheResult`, `ToolTrace`. | Pure data definitions; no logic. |
-| **L1** Cache core | `cache/` (dll, lru, lfu, adaptive, metrics) | Pure data structures: `get(key)`, `put(key, val)`, `keys()`, `size()`. Metrics for hits, misses, evictions. | No knowledge of tools, TTL, HTTP, or LLMs. A string key in, value out. |
-| **L2** Cache manager | `cache/manager.py` | Builds deterministic keys (tool + sorted JSON args), applies TTL, selects policy (NONE/LRU/LFU/ADAPTIVE), handles config updates/resets, exposes `stats()`. | Does not execute tools; answers hit/miss and stores values. |
-| **L3** Tools | `tools/` (catalog, calculator, registry) | SQLite catalog queries (with simulated delay), math expressions, argument validation. | Pure & deterministic; unaware of cache. |
-| **L4** Execution + Agent | `agent/` (executor, agent) | Cache lookup -> miss fallback -> execute -> store. LLM agent reasoning with fallback. | LLM calls isolated here. |
-| **L5** API | `api/` (routers, schemas) | `/chat`, `/stats`, `/config`, `/cache`, `/benchmark`, `/health`. | HTTP parsing and dispatch only; no business logic. |
-| **L6** Benchmark | `benchmark/` (workloads, runner, results) | Generates Hot Keys, Sequential Scan, Phase Change workloads; replays across policies. | Repeatable; never calls LLM. |
+| **L0** Shared | `src/config/`, `src/models/` | Capacity, TTL, window size, thresholds, tool delay. Dataclasses `CacheResult`, `ToolTrace`. | Pure data definitions; no logic. |
+| **L1** Cache core | `src/cache/` (dll, lru, lfu, adaptive, metrics) | Pure data structures: `get(key)`, `put(key, val)`, `keys()`, `size()`. Metrics for hits, misses, evictions. | No knowledge of tools, TTL, HTTP, or LLMs. A string key in, value out. |
+| **L2** Cache manager | `src/cache/manager.py` | Builds deterministic keys (tool + sorted JSON args), applies TTL, selects policy (NONE/LRU/LFU/ADAPTIVE), handles config updates/resets, exposes `stats()`. | Does not execute tools; answers hit/miss and stores values. |
+| **L3** Tools | `src/tools/` (catalog, calculator, registry) | SQLite catalog queries (with simulated delay), math expressions, argument validation. | Pure & deterministic; unaware of cache. |
+| **L4** Execution + Agent | `src/agent/` (executor, agent) | Cache lookup -> miss fallback -> execute -> store. LLM agent reasoning with fallback. | LLM calls isolated here. |
+| **L5** API | `src/api/` (routers, schemas), `api.py` | `/chat`, `/stats`, `/config`, `/cache`, `/benchmark`, `/health`. | HTTP parsing and dispatch only; no business logic. |
+| **L6** Benchmark | `src/benchmark/` (workloads, runner, results) | Generates Hot Keys, Sequential Scan, Phase Change workloads; replays across policies. | Repeatable; never calls LLM. |
 | **L7** Dashboard | `dashboard/app.py` | Chat view, hit/miss badges, live telemetry, and charts. | Consumes API only. |
 
 ## L1 Adaptive Cache Architecture
@@ -115,12 +118,13 @@ Dependencies are programmatically maintained in `requirements.py` with layer met
 
 2. **Verify All Layers (L0 - L7):**
    ```bash
-   .venv/bin/python -c "from config import default_config; from models import CacheResult, ToolTrace; from cache import CacheManager; from tools import search_catalog, calculate; from agent import Agent, ToolExecutor; from api import app; from benchmark import run_benchmark; from dashboard.config import API_BASE_URL; print('L0-L7 verification passed')"
+   .venv/bin/python -c "from src.config import default_config; from src.models import CacheResult, ToolTrace; from src.cache import CacheManager; from src.tools import search_catalog, calculate; from src.agent import Agent, ToolExecutor; from src.api import app; from src.benchmark import run_benchmark; from dashboard.config import API_BASE_URL; print('L0-L7 verification passed')"
    ```
 
 3. **Run the API Server (Terminal 1):**
    ```bash
-   .venv/bin/uvicorn api:app --reload --port 8000
+   .venv/bin/uvicorn src.api:app --reload --port 8000
+   # Or alternatively: .venv/bin/uvicorn api:app --reload --port 8000
    ```
 
 4. **Run the Dashboard (Terminal 2):**

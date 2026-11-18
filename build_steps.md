@@ -476,3 +476,59 @@
 ## Dashboard Streamlit Fix
 - [x] Fixed `ModuleNotFoundError: No module named 'dashboard'` when running `streamlit run dashboard/app.py` by resolving project root in `dashboard/app.py` and prepending to `sys.path`.
 - [x] Configured `.streamlit/config.toml` (`gatherUsageStats = false`) to bypass interactive telemetry prompt on startup.
+
+=== STEP TRACKING: REFACTOR BACKEND INTO SRC/ LAYOUT ===
+
+## Step 1: Architectural Design & Plan for src/ Refactoring
+- Move all backend packages from project root into `src/`:
+  * `config/` (L0) -> `src/config/`
+  * `models/` (L0) -> `src/models/`
+  * `cache/` (L1 & L2) -> `src/cache/`
+  * `tools/` (L3) -> `src/tools/`
+  * `agent/` (L4) -> `src/agent/`
+  * `api/` (L5) -> `src/api/`
+  * `benchmark/` (L6) -> `src/benchmark/`
+- Maintain frontend `dashboard/` (L7) at repository root.
+- Strict constraint: DO NOT change any algorithm or business logic (LRU, LFU, Adaptive, DLL, metrics, reconstruction, etc. remain 100% identical).
+- Updates required:
+  1. Internal imports across all backend files updated to `from src.<package> ...` (or relative `from .<module> ...` within the same package).
+  2. Create `src/__init__.py` to export core interfaces and ensure Python recognizes `src` as a top-level package.
+  3. Create root `api.py` as a lightweight ASGI forwarding entrypoint (`from src.api.app import app, create_app`) so both `uvicorn api:app` and `uvicorn src.api:app` work out of the box.
+  4. Ensure `dashboard/` continues to operate via HTTP without issue.
+  5. Update `README.md` to reflect the new `src/` directory tree, verification commands, and server startup commands.
+  6. Comprehensive verification across all layers L0-L7.
+
+## Step 2: Move Backend Directories into src/
+- Create `src/` directory.
+- Move packages: config, models, cache, tools, agent, api, benchmark into `src/`.
+
+## Step 3: Update Imports across src/
+- Update `src/config/`
+- Update `src/models/`
+- Update `src/cache/`
+- Update `src/tools/`
+- Update `src/agent/`
+- Update `src/api/`
+- Update `src/benchmark/`
+
+## Step 4: Create src/__init__.py and root api.py ASGI shim
+- `src/__init__.py` initializes `src` package.
+- Root `api.py` imports `app` from `src.api`.
+
+## Step 5: Verification of All Layers (L0 - L7)
+- Run unit/layer imports and functional tests under `.venv/bin/python`.
+- Verify API server and benchmark runner with updated paths.
+
+## Step 6: Update README.md and Completion Log
+- Document `src/` architecture in `README.md`.
+- Mark steps completed in `build_steps.md`.
+
+## Backend Refactoring to src/ — Complete
+- [x] Moved all backend packages into `src/` (`config`, `models`, `cache`, `tools`, `agent`, `api`, `benchmark`).
+- [x] Created `src/__init__.py` exporting backend root and configuring dynamic sys.path resolution.
+- [x] Created root `api.py` ASGI forwarding shim so both `uvicorn src.api:app` and `uvicorn api:app` work out of the box.
+- [x] Updated all package imports across `src/` to explicitly target `src.<package>`.
+- [x] Verified zero algorithmic or cache logic changes: LRU, LFU, Adaptive cache, DLL, metrics, and reconstruction logic are 100% preserved.
+- [x] Verified full API test suite via FastAPI TestClient (all 6 endpoints: /health, /chat, /stats, /config, /cache, /benchmark).
+- [x] Verified Streamlit dashboard and full-stack import tests.
+- [x] Updated README.md directory tree, layer descriptions, startup commands, and verification commands.
