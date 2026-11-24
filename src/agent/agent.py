@@ -150,7 +150,6 @@ class Agent:
             answer = f"Tool `{tool_name}` returned: {result}"
 
         total_latency_ms = (time.perf_counter() - start_time) * 1000.0
-
         return ChatResponse(
             answer=answer,
             tool=tool_name,
@@ -159,4 +158,3 @@ class Agent:
             latency_ms=total_latency_ms,
             trace=trace,
         )
-

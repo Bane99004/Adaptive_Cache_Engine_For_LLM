@@ -7,7 +7,10 @@ Pure and deterministic — does NOT know about caching, TTL, or LLMs.
 
 from __future__ import annotations
 
+from src.cache import adaptive_cache
 
+
+@adaptive_cache(ttl=0.0)
 def calculate(expr: str) -> float | int:
     """
     Evaluate a basic mathematical expression string.

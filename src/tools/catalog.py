@@ -11,6 +11,8 @@ import sqlite3
 import time
 from typing import Any
 
+from src.cache import adaptive_cache
+
 # Default simulated latency matching L0 config.tool_delay_seconds (300 ms)
 DEFAULT_DELAY_SECONDS = 0.3
 
@@ -131,6 +133,7 @@ class ProductCatalog:
 _DEFAULT_CATALOG = ProductCatalog()
 
 
+@adaptive_cache(ttl=300.0)
 def search_catalog(
     category: str | None = None,
     max_price: float | None = None,

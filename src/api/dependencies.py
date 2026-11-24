@@ -8,7 +8,11 @@ Kept in a separate helper file per repository structure rules.
 from __future__ import annotations
 from src.agent.agent import Agent
 from src.agent.executor import ToolExecutor
-from src.cache.manager import CacheManager
+from src.cache.manager import (
+    CacheManager,
+    get_default_cache_manager,
+    reset_default_cache_manager,
+)
 from src.config.cache_config import default_config
 
 # Global application instances
@@ -20,7 +24,7 @@ def get_cache_manager() -> CacheManager:
     """Provide the application-wide CacheManager instance."""
     global _CACHE_MANAGER
     if _CACHE_MANAGER is None:
-        _CACHE_MANAGER = CacheManager(default_config())
+        _CACHE_MANAGER = get_default_cache_manager(default_config())
     return _CACHE_MANAGER
 
 
@@ -39,4 +43,5 @@ def reset_dependencies() -> None:
     global _CACHE_MANAGER, _AGENT
     _CACHE_MANAGER = None
     _AGENT = None
+    reset_default_cache_manager()
 

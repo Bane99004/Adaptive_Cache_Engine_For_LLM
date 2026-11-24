@@ -14,7 +14,6 @@ from typing import Any, Callable
 from src.tools.calculator import calculate
 from src.tools.catalog import search_catalog
 
-
 @dataclass(frozen=True)
 class ToolDefinition:
     """Metadata and schema specification for a registered tool."""

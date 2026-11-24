@@ -26,7 +26,6 @@ from dashboard.api_client import (
     get_stats,
     run_benchmark,
     send_chat,
-    update_config,
 )
 from dashboard.components import (
     render_benchmark_charts,
@@ -35,16 +34,11 @@ from dashboard.components import (
     render_stats_panel,
 )
 from dashboard.config import (
-    DEFAULT_CAPACITY,
     DEFAULT_ITERATIONS,
-    DEFAULT_TTL,
-    MAX_CAPACITY,
     MAX_ITERATIONS,
-    MAX_TTL,
     PAGE_ICON,
     PAGE_LAYOUT,
     PAGE_TITLE,
-    POLICY_OPTIONS,
     WORKLOAD_OPTIONS,
 )
 
@@ -77,24 +71,20 @@ with st.sidebar:
         st.error("⚠️ API server unreachable. Start it with:\n\n`uvicorn api:app --port 8000`")
 
     st.divider()
-    st.subheader("Configuration")
+    st.subheader("🎯 Tool Cache Policies")
+    st.caption("Configured strictly via `@adaptive_cache` decorators per function:")
 
-    policy = st.selectbox("Eviction Policy", POLICY_OPTIONS, index=1)
-    capacity = st.slider("Capacity", min_value=1, max_value=MAX_CAPACITY, value=DEFAULT_CAPACITY)
-    ttl = st.number_input("TTL (seconds)", min_value=0.0, max_value=MAX_TTL, value=DEFAULT_TTL, step=1.0)
-    window_size = st.number_input("Window Size (Adaptive)", min_value=10, max_value=1000, value=200, step=10)
+    with st.container(border=True):
+        st.markdown("**`search_catalog`**")
+        st.markdown("- **TTL:** `300s` (5 min)")
+        st.markdown("- **Scope:** Shared Cache Pool")
+        st.markdown("- **Decorator:** `@adaptive_cache(ttl=300.0)`")
 
-    if st.button("🔧 Apply Configuration", use_container_width=True):
-        try:
-            result = update_config(
-                capacity=capacity,
-                ttl_seconds=ttl,
-                policy=policy,
-                window_size=window_size,
-            )
-            st.success(f"Config updated: {result.get('status', 'ok')}")
-        except Exception as e:
-            st.error(f"Config update failed: {e}")
+    with st.container(border=True):
+        st.markdown("**`calculate`**")
+        st.markdown("- **TTL:** `0s` (Permanent / No Expiry)")
+        st.markdown("- **Scope:** Shared Cache Pool")
+        st.markdown("- **Decorator:** `@adaptive_cache(ttl=0.0)`")
 
     st.divider()
 

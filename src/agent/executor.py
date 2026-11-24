@@ -6,24 +6,21 @@ Used by Agent (L4 chat flow) and Benchmark Runner (L6 replay flow).
 """
 
 from __future__ import annotations
-
 import time
 from typing import Any
-
-from src.cache.manager import CacheManager
+from src.cache.manager import CacheManager, get_default_cache_manager
 from src.models.cache_models import ToolTrace
 from src.tools.registry import DEFAULT_REGISTRY, ToolRegistry
-
 
 class ToolExecutor:
     """
     Executes tools behind the L2 CacheManager.
-
     Lifecycle for executor.run(tool, args):
-    1. Lookup in cache.
-    2. If hit: return cached value with ToolTrace(cache_hit=True).
-    3. If miss: execute tool via registry, store in cache, return result
-       with ToolTrace(cache_hit=False).
+    - If tool function is decorated with @adaptive_cache:
+      Executes directly through the decorator, which handles lookup/miss/store
+      and updates metrics on the shared CacheManager automatically.
+    - If tool function is undecorated:
+      Executes via manual cache lookup -> miss execution -> cache store.
     """
 
     def __init__(
@@ -32,7 +29,7 @@ class ToolExecutor:
         registry: ToolRegistry | None = None,
     ) -> None:
         self.cache_manager = (
-            cache_manager if cache_manager is not None else CacheManager()
+            cache_manager if cache_manager is not None else get_default_cache_manager()
         )
         self.registry = registry if registry is not None else DEFAULT_REGISTRY
 
@@ -52,9 +49,27 @@ class ToolExecutor:
         clean_args = args if args is not None else {}
         start_time = time.perf_counter()
 
-        # Step 1: Cache Lookup
-        cache_result = self.cache_manager.lookup(tool, clean_args)
+        tool_def = self.registry.get(tool)
+        func = tool_def.func
 
+        # Path 1: Decorated tool (executes transparently via @adaptive_cache)
+        if hasattr(func, "_last_hit"):
+            computed_result = self.registry.execute(tool, clean_args)
+            hit = getattr(func, "_last_hit", False)
+            latency_ms = getattr(
+                func, "_last_latency_ms", (time.perf_counter() - start_time) * 1000.0
+            )
+            trace = ToolTrace(
+                tool_name=tool,
+                args=clean_args,
+                result=computed_result,
+                cache_hit=hit,
+                latency_ms=latency_ms,
+            )
+            return computed_result, trace
+
+        # Path 2: Undecorated fallback (manual lookup -> execute -> store)
+        cache_result = self.cache_manager.lookup(tool, clean_args)
         if cache_result.hit:
             latency_ms = (time.perf_counter() - start_time) * 1000.0
             trace = ToolTrace(
@@ -66,10 +81,7 @@ class ToolExecutor:
             )
             return cache_result.value, trace
 
-        # Step 2: Cache Miss — Execute tool via L3 Registry
         computed_result = self.registry.execute(tool, clean_args)
-
-        # Step 3: Store in cache manager
         self.cache_manager.store(tool, clean_args, computed_result)
 
         latency_ms = (time.perf_counter() - start_time) * 1000.0

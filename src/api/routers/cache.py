@@ -27,8 +27,21 @@ router = APIRouter(tags=["Cache Management"])
 def get_cache_stats(
     cache_mgr: CacheManager = Depends(get_cache_manager),
 ) -> StatsResponseSchema:
-    """Return live cache telemetry, counters, hit rates, and policy state."""
+    """Return live cache telemetry, general counters, and per-function stats."""
     raw_stats = cache_mgr.stats()
+
+    # Query per-function stats directly from decorated tools
+    from src.tools.registry import DEFAULT_REGISTRY
+
+    functions_stats = {}
+    for tool_spec in DEFAULT_REGISTRY.list_tools():
+        name = tool_spec["name"]
+        defn = DEFAULT_REGISTRY.get(name)
+        fn = defn.func
+        if hasattr(fn, "function_stats"):
+            functions_stats[name] = fn.function_stats()
+    raw_stats["functions"] = functions_stats
+
     return StatsResponseSchema(**raw_stats)
 
 
@@ -70,6 +83,16 @@ def clear_cache_endpoint(
 ) -> CacheClearResponseSchema:
     """Purge all entries from the active cache and reset metrics."""
     cache_mgr.clear()
+
+    # Reset per-function counters directly on decorated tools
+    from src.tools.registry import DEFAULT_REGISTRY
+
+    for tool_spec in DEFAULT_REGISTRY.list_tools():
+        defn = DEFAULT_REGISTRY.get(tool_spec["name"])
+        fn = defn.func
+        if hasattr(fn, "reset_stats"):
+            fn.reset_stats()
+
     return CacheClearResponseSchema(
         status="cleared",
         message="Cache storage cleared and all performance metrics reset.",

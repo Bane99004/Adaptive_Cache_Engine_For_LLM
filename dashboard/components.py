@@ -39,32 +39,72 @@ def render_chat_message(response: dict[str, Any]) -> None:
 
 def render_stats_panel(stats: dict[str, Any]) -> None:
     """
-    Display live cache statistics as metric widgets.
-
-    Args:
-        stats: Dict from GET /stats.
+    Display live cache statistics separated into:
+    1. General Cache (Shared Pool metrics: hit rate, capacity, size, evictions, policy)
+    2. Per-Function Cache Breakdown (Configured TTL, hits, misses, hit rate per tool)
     """
+    # ── 1. General Cache Overview ──
+    st.markdown("### 🌐 General Cache (Shared Pool)")
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Hit Rate", f"{stats.get('hit_rate', 0) * 100:.1f}%")
-    col2.metric("Hits / Misses", f"{stats.get('hits', 0)} / {stats.get('misses', 0)}")
+    col1.metric("Overall Hit Rate", f"{stats.get('hit_rate', 0) * 100:.1f}%")
+    col2.metric("Total Hits / Misses", f"{stats.get('hits', 0)} / {stats.get('misses', 0)}")
     col3.metric("Evictions", stats.get("evictions", 0))
     col4.metric("Size / Capacity", f"{stats.get('size', 0)} / {stats.get('capacity', 0)}")
 
     col5, col6, col7 = st.columns(3)
     col5.metric("Policy", stats.get("policy", "N/A"))
-    col6.metric("Active Policy", stats.get("active_policy", "N/A"))
-    col7.metric("TTL (s)", stats.get("ttl_seconds", 0))
+    col6.metric("Active Sub-Policy", stats.get("active_policy", "N/A"))
+    switches = stats.get("switch_history_count")
+    col7.metric("Policy Switches", switches if switches is not None else 0)
 
     # Shadow stats if Adaptive
     shadow = stats.get("shadow_stats")
     if shadow:
         st.markdown("##### Shadow Simulator Rates")
-        s_col1, s_col2, s_col3 = st.columns(3)
+        s_col1, s_col2 = st.columns(2)
         s_col1.metric("LRU Shadow", f"{shadow.get('lru_window_rate', 0) * 100:.1f}%")
         s_col2.metric("LFU Shadow", f"{shadow.get('lfu_window_rate', 0) * 100:.1f}%")
-        switches = stats.get("switch_history_count")
-        if switches is not None:
-            s_col3.metric("Policy Switches", switches)
+
+    st.divider()
+
+    # ── 2. Per-Function Breakdown (Configured TTL & Function Telemetry) ──
+    st.markdown("### 🎯 Per-Function Cache & TTL Breakdown")
+    st.caption("Each function defines its own strict caching behavior and TTL via `@adaptive_cache`:")
+
+    functions_data = stats.get("functions", {})
+    if not functions_data:
+        st.info("No decorated functions tracked yet.")
+        return
+
+    # Visual Cards for each function
+    for fn_name, fn_info in functions_data.items():
+        ttl_val = fn_info.get("ttl_seconds")
+        ttl_display = "∞ Permanent (0s)" if (ttl_val == 0 or ttl_val == 0.0) else (f"{ttl_val}s" if ttl_val is not None else "Default")
+        hit_rate = fn_info.get("hit_rate", 0.0) * 100
+
+        with st.container(border=True):
+            f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.5, 1.2, 1, 1.2, 1])
+            f_col1.markdown(f"**Function:** `{fn_name}`")
+            f_col2.metric("Configured TTL", ttl_display)
+            f_col3.metric("Hit Rate", f"{hit_rate:.1f}%")
+            f_col4.metric("Hits / Misses", f"{fn_info.get('hits', 0)} / {fn_info.get('misses', 0)}")
+            f_col5.metric("Cached Keys", fn_info.get("cached_entries", 0))
+
+    # Clean structured table
+    table_rows = []
+    for fn_name, fn_info in functions_data.items():
+        ttl_val = fn_info.get("ttl_seconds")
+        ttl_str = "∞ Permanent (0s)" if (ttl_val == 0 or ttl_val == 0.0) else (f"{ttl_val}s" if ttl_val is not None else "Default")
+        table_rows.append({
+            "Function": fn_name,
+            "Configured TTL": ttl_str,
+            "Hits": fn_info.get("hits", 0),
+            "Misses": fn_info.get("misses", 0),
+            "Total Calls": fn_info.get("total", 0),
+            "Hit Rate (%)": round(fn_info.get("hit_rate", 0.0) * 100, 2),
+            "Cached Entries": fn_info.get("cached_entries", 0),
+        })
+    st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
 
 
 def render_benchmark_table(runs: list[dict[str, Any]]) -> None:

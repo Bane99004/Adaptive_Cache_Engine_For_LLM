@@ -52,6 +52,22 @@ class ConfigResponseSchema(BaseModel):
     status: str = Field(..., description="Status message.")
     config: dict[str, Any] = Field(..., description="Current cache configuration settings.")
 
+
+class FunctionStatsSchema(BaseModel):
+    """Telemetry and configured TTL for an individual cached function."""
+
+    ttl_seconds: float | None = Field(
+        None, description="Configured TTL in seconds (0 = permanent / no expiry)."
+    )
+    hits: int = Field(0, description="Hit count for this function.")
+    misses: int = Field(0, description="Miss count for this function.")
+    total: int = Field(0, description="Total calls for this function.")
+    hit_rate: float = Field(0.0, description="Hit rate for this function (0.0 to 1.0).")
+    cached_entries: int = Field(
+        0, description="Number of entries currently stored for this function."
+    )
+
+
 class StatsResponseSchema(BaseModel):
     """Response payload for GET /stats."""
 
@@ -60,7 +76,7 @@ class StatsResponseSchema(BaseModel):
     active_policy: str = Field(..., description="Currently active policy (e.g. within Adaptive).")
     capacity: int = Field(..., description="Configured capacity.")
     size: int = Field(..., description="Number of entries currently cached.")
-    ttl_seconds: float = Field(..., description="Configured TTL in seconds.")
+    ttl_seconds: float = Field(..., description="Default fallback TTL in seconds.")
     hits: int = Field(..., description="Total cache hit count.")
     misses: int = Field(..., description="Total cache miss count.")
     evictions: int = Field(..., description="Total evictions performed.")
@@ -68,6 +84,10 @@ class StatsResponseSchema(BaseModel):
     hit_rate: float = Field(..., description="Current overall hit rate (0.0 to 1.0).")
     shadow_stats: dict[str, float] | None = Field(None, description="Simulated shadow stats if Adaptive.")
     switch_history_count: int | None = Field(None, description="Number of policy switches executed.")
+    functions: dict[str, FunctionStatsSchema] = Field(
+        default_factory=dict,
+        description="Per-function telemetry and TTLs configured via @adaptive_cache.",
+    )
 
 
 class CacheClearResponseSchema(BaseModel):

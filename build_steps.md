@@ -532,3 +532,304 @@
 - [x] Verified full API test suite via FastAPI TestClient (all 6 endpoints: /health, /chat, /stats, /config, /cache, /benchmark).
 - [x] Verified Streamlit dashboard and full-stack import tests.
 - [x] Updated README.md directory tree, layer descriptions, startup commands, and verification commands.
+
+=== STEP TRACKING: REUSABLE @adaptive_cache DECORATOR ===
+
+## Goal
+Create a plug-and-play decorator that wraps ANY Python function with the full
+Adaptive Cache system (LRU, LFU, Adaptive switching, TTL, metrics).
+Like a production-grade @functools.lru_cache replacement.
+
+## Step 1: Create src/cache/decorator.py
+- adaptive_cache(policy, capacity, ttl, window_size, hit_rate_threshold) → decorator
+- Internally creates a CacheManager per decorated function
+- Builds deterministic key from func.__name__ + *args + **kwargs
+- On call: lookup → miss: call original function → store → return result
+- Attaches helper methods to wrapper:
+  * .cache_stats() → dict (hits, misses, hit_rate, etc.)
+  * .cache_clear() → None (reset cache + metrics)
+  * .cache_config(**kwargs) → reconfigure at runtime
+  * .cache_manager → direct access to underlying CacheManager
+
+## Step 2: Update src/cache/__init__.py
+- Export adaptive_cache from decorator.py
+
+## Step 3: Verification
+- Test decorator on standalone functions
+- Test cache hit/miss cycle
+- Test TTL expiry
+- Test cache_stats(), cache_clear(), cache_config()
+- Test policy switching
+- Verify existing ToolExecutor and API still work (no changes to them)
+
+## Step 4: Update README.md and build_steps.md
+
+## @adaptive_cache Decorator — Complete
+- [x] Created src/cache/decorator.py — reusable @adaptive_cache decorator wrapping any Python function.
+- [x] Uses inspect.signature to bind args/kwargs into a stable dict for deterministic key building.
+- [x] CacheManager handles all lookup, TTL, policy routing, and storage internally.
+- [x] Attached introspection methods: .cache_stats(), .cache_clear(), .cache_config()
+- [x] @functools.wraps preserves function name and docstring metadata.
+- [x] Updated src/cache/__init__.py to export adaptive_cache.
+- [x] All 10 tests passed:
+  * Hit/miss cycle with 5033x speedup
+  * Different args → different cache entries
+  * cache_stats() metrics reporting
+  * cache_clear() resets everything
+  * cache_config() runtime reconfiguration (policy + capacity)
+  * Keyword arguments produce distinct keys
+  * TTL expiry
+  * ADAPTIVE policy with shadow evaluation
+  * functools.wraps metadata preservation
+  * Existing ToolExecutor, Agent, API, Benchmark unaffected
+- [x] Updated README.md with decorator documentation and usage example.
+
+=== STEP TRACKING: SHARED CACHE MANAGER FOR @adaptive_cache ===
+
+## Goal
+Enable `@adaptive_cache` to use a single shared `CacheManager` across all decorated
+functions by default, while still allowing explicit custom managers or isolated caches.
+
+## Plan
+1. Update `src/cache/manager.py`:
+   - Allow `store()` and `store_by_key()` to accept an optional `ttl_seconds: float | None = None`.
+   - If provided, the specific entry uses that TTL; otherwise falls back to `config.ttl_seconds`.
+   - Preserves all existing algorithms and signatures.
+
+2. Update `src/cache/decorator.py`:
+   - Add `_DEFAULT_SHARED_MANAGER: CacheManager | None = None`.
+   - Add `get_shared_manager(config=None)` and `set_shared_manager(manager)`.
+   - In `adaptive_cache`:
+     * If `manager` is passed explicitly, use it.
+     * Else if `shared=True` (default), use `get_shared_manager(config)`.
+     * Else if `shared=False`, create an isolated `CacheManager(config)`.
+   - Pass function's `ttl` to `manager.store(..., ttl_seconds=ttl)`.
+   - Keep per-function call statistics (`_function_hits`, `_function_misses`) on wrapper, while `.cache_stats()` provides the global shared cache telemetry.
+   - Export `get_shared_manager` and `set_shared_manager` in `src/cache/__init__.py`.
+
+3. Verify:
+   - Multiple decorated functions share the same cache pool and hit/miss count.
+   - Separate tools don't collide keys (prefixed by function name).
+   - Capacity eviction affects the shared pool.
+   - Isolated mode (`shared=False`) still works.
+   - Custom manager (`manager=...`) works.
+   - Existing ToolExecutor, Agent, API, and Benchmarks continue to pass.
+
+4. Update documentation in `README.md`.
+
+## Shared CacheManager for @adaptive_cache — Complete
+- [x] Updated `src/cache/manager.py`: `store()` and `store_by_key()` accept optional `ttl_seconds: float | None = None` for function-level TTL overrides.
+- [x] Updated `src/cache/decorator.py`:
+  * Default behavior is now `shared=True`, sharing a unified `CacheManager` singleton (`get_shared_manager()`).
+  * Cross-tool keys are automatically namespaced by function qualname (no collisions).
+  * Capacity and evictions are enforced globally across all shared tools.
+  * Added `.function_stats()` for per-function hit/miss metrics alongside `.cache_stats()` for global telemetry.
+  * Supported `shared=False` for dedicated isolated caches when needed.
+  * Supported `manager=custom_mgr` for explicit dependency injection.
+- [x] Exported `get_shared_manager`, `set_shared_manager`, and `reset_shared_manager` in `src/cache/__init__.py`.
+- [x] All 8 tests passed including shared pooling, cross-tool eviction, TTL overrides, and full system backward compatibility.
+- [x] Updated `README.md` documentation.
+
+=== STEP TRACKING: IMPLEMENT DECORATORS ON AGENT TOOLS ===
+
+## Goal
+Implement `@adaptive_cache` directly on our agent tools (`search_catalog` and `calculate`),
+so the tools themselves are self-caching via the decorator, and wire `ToolExecutor` to
+dispatch through the decorator seamlessly.
+
+## Plan
+1. Update `src/cache/decorator.py`:
+   - Implement `_CachedFunction` wrapper class with `@property def cache_manager`
+     so dynamic manager switching works seamlessly across runs and benchmarks.
+   - Preserves all docstrings, parameter signatures (`inspect.signature`), and introspection methods.
+
+2. Decorate Agent Tools:
+   - `src/tools/catalog.py`: Decorate `search_catalog` with `@adaptive_cache(ttl=300.0)`.
+   - `src/tools/calculator.py`: Decorate `calculate` with `@adaptive_cache(ttl=0.0)`.
+
+3. Update `src/agent/executor.py`:
+   - Update `ToolExecutor.__init__` to sync its `cache_manager` with `set_shared_manager(...)`.
+   - Update `ToolExecutor.run()`:
+     * If tool function is decorated with `@adaptive_cache`, execute via decorator and read `_last_hit` and `_last_latency_ms`.
+     * Maintain fallback path for any undecorated custom tools.
+
+4. Update `src/api/dependencies.py`:
+   - Ensure `get_cache_manager()` returns `get_shared_manager()`.
+
+5. Verification:
+   - Test `search_catalog` called directly: miss (~300ms) -> hit (<1ms).
+   - Test `calculate` called directly: miss -> hit.
+   - Test Agent chat through `Agent.chat()`: verify hit/miss and latency.
+   - Test API endpoints (`/chat`, `/stats`, `/health`, `/benchmark`).
+   - Test Benchmark runner: verify deterministic workloads across all 4 policies.
+   - Update `README.md` and log completion.
+
+## Agent Tools Decorator Implementation — Complete
+- [x] Refactored `src/cache/decorator.py` with `_CachedFunction` wrapper class:
+  * Uses `@property def cache_manager` for dynamic resolution of the active `CacheManager`.
+  * Preserves exact original function signatures, docstrings, and parameter schemas.
+  * Tracks `_last_hit`, `_last_latency_ms`, and per-function stats (`function_stats()`).
+- [x] Implemented `@adaptive_cache` on agent tools:
+  * `src/tools/catalog.py`: `search_catalog` decorated with `@adaptive_cache(ttl=300.0)`.
+  * `src/tools/calculator.py`: `calculate` decorated with `@adaptive_cache(ttl=0.0)`.
+- [x] Updated `src/agent/executor.py`:
+  * `ToolExecutor` syncs its `cache_manager` with `set_shared_manager(self.cache_manager)`.
+  * `ToolExecutor.run()` detects decorated tools and dispatches directly through the decorator wrapper, collecting `ToolTrace(cache_hit, latency_ms)`.
+  * Fallback for undecorated tools preserved.
+- [x] Updated `src/api/dependencies.py`:
+  * `get_cache_manager()` returns `get_shared_manager()`, ensuring tools, agent, and API endpoints share the same cache instance.
+- [x] All test suites passed:
+  * `search_catalog` miss (305ms) -> hit (0.46ms, 661x speedup).
+  * `calculate` miss -> hit verified.
+  * Agent chat math and catalog queries verified.
+  * API endpoints (`/chat`, `/stats`, `/health`, `/benchmark`) verified.
+  * Benchmark runner (12 runs across 3 workloads & 4 policies) verified.
+- [x] Updated `README.md` documentation.
+
+=== STEP TRACKING: SIMPLIFIED VERSION FOR 15-MARK ACADEMIC SUBMISSION ===
+
+## Goal
+Create a self-contained, clean, zero-overengineering version in `simplified/`
+focusing purely on the core caching algorithms, the `@adaptive_cache` decorator,
+and an easy-to-demo agent script with zero external dependencies (standard library only).
+
+## Architecture for `simplified/`
+1. `simplified/cache.py`:
+   - `LRUCache(capacity)`: clean O(1) LRU using `OrderedDict`.
+   - `LFUCache(capacity)`: clean O(1) LFU with frequency buckets and tie-breaking.
+   - `AdaptiveCache(capacity, window_size, switch_threshold)`: single real cache + shadow simulators (LRU/LFU) with sliding window hit-rate evaluation and seamless policy switching.
+2. `simplified/decorator.py`:
+   - `@adaptive_cache(policy="ADAPTIVE", capacity=64, ttl=0)`:
+     * Wraps any function.
+     * Shared manager by default (or isolated).
+     * Attached methods: `.cache_stats()`, `.cache_clear()`.
+3. `simplified/agent.py`:
+   - Decorated tools (`search_catalog`, `calculate`) using `@adaptive_cache`.
+   - Lightweight rule-based Agent that routes queries to tools and returns `{answer, tool, hit, latency_ms}`.
+4. `simplified/demo.py`:
+   - Examiner-ready runnable demo script:
+     * Part 1: Decorator benchmark (demonstrating 1000x speedup on tool call).
+     * Part 2: Algorithm comparison (LRU vs LFU vs Adaptive on shifting workloads).
+     * Part 3: Live Agent chat interactions showing hits/misses.
+5. `simplified/README.md`:
+   - Concise, examiner-friendly documentation explaining the algorithms, architecture, and step-by-step commands to run.
+
+## Plan Execution
+- Step 1: Create `simplified/` folder.
+- Step 2: Implement `simplified/cache.py`.
+- Step 3: Implement `simplified/decorator.py`.
+- Step 4: Implement `simplified/agent.py`.
+- Step 5: Implement `simplified/demo.py`.
+- Step 6: Create `simplified/README.md`.
+- Step 7: Verify with automated test run.
+
+## Simplified 15-Mark Academic Version — Complete
+- [x] Created `simplified/` directory with clean, zero-overengineering, zero-dependency implementation.
+- [x] `simplified/cache.py`: Clean $O(1)$ LRU (OrderedDict), LFU (frequency buckets + tie-breaking), and Adaptive Cache (shadow simulators + reconstruction).
+- [x] `simplified/decorator.py`: `@adaptive_cache` decorator supporting shared memory pool, TTL, and `.cache_stats()` / `.function_stats()` introspection.
+- [x] `simplified/agent.py`: Agent with self-caching tools (`search_catalog` and `calculate`).
+- [x] `simplified/demo.py`: 3-part examiner demonstration script:
+  * Demo 1: Tool acceleration (2726x speedup on catalog search).
+  * Demo 2: Algorithm comparison (LRU vs LFU vs Adaptive on shifting workloads).
+  * Demo 3: Natural language Agent chat interactions with live hit/miss badges and telemetry.
+- [x] `simplified/README.md`: Viva guide with quick start, algorithm explanations, and 15-mark Q&A cheat-sheet.
+- [x] Tested directly with `python simplified/demo.py` — 100% standard library, zero dependencies needed.
+
+=== STEP TRACKING: MODULAR DIRECTORY STRUCTURE FOR SIMPLIFIED VERSION ===
+
+## Goal
+Restructure `simplified/` into a clean, modular folder layout adhering strictly
+to CLAUDE.md repository structure rules (configs separate, prompts separate,
+each algorithm in its own file, tools separate, agent separate), while keeping
+it zero-dependency and free of overengineering (no Pydantic, no FastAPI).
+
+## Planned Directory Structure:
+```
+simplified/
+├── config/
+│   ├── __init__.py
+│   └── cache_config.py      # Cache configuration dataclass & defaults
+├── cache/
+│   ├── __init__.py
+│   ├── lru.py               # LRU eviction algorithm
+│   ├── lfu.py               # LFU eviction algorithm
+│   ├── adaptive.py          # Adaptive Cache (shadow simulators & reconstruction)
+│   ├── manager.py           # CacheManager (key building, TTL checking, routing)
+│   └── decorator.py         # @adaptive_cache decorator
+├── tools/
+│   ├── __init__.py
+│   ├── catalog.py           # search_catalog (@adaptive_cache decorated)
+│   └── calculator.py        # calculate (@adaptive_cache decorated)
+├── agent/
+│   ├── __init__.py
+│   ├── prompts.py           # System prompts & answer formatting
+│   └── agent.py             # Chat Agent calling decorated tools directly
+├── demo.py                  # Live 3-part examiner demonstration script
+├── README.md                # 15-mark viva reference guide
+└── __init__.py              # Package exports
+```
+
+## Steps:
+1. Create directories: `simplified/config`, `simplified/cache`, `simplified/tools`, `simplified/agent`.
+2. Implement `simplified/config/cache_config.py`.
+3. Implement `simplified/cache/lru.py`.
+4. Implement `simplified/cache/lfu.py`.
+5. Implement `simplified/cache/adaptive.py`.
+6. Implement `simplified/cache/manager.py`.
+7. Implement `simplified/cache/decorator.py`.
+8. Implement `simplified/tools/catalog.py` & `simplified/tools/calculator.py`.
+9. Implement `simplified/agent/prompts.py` & `simplified/agent/agent.py`.
+10. Remove monolithic files (`simplified/cache.py`).
+11. Update `simplified/demo.py` imports and `simplified/README.md`.
+12. Verify with test execution.
+
+## Modular Simplified Version — Complete
+- [x] Completely divided `simplified/` into proper modular packages adhering to CLAUDE.md rules:
+  * `simplified/config/`: `cache_config.py` (configuration separated from logic).
+  * `simplified/cache/`: `lru.py`, `lfu.py`, `adaptive.py`, `manager.py`, `decorator.py` (each algorithm in its own file).
+  * `simplified/tools/`: `catalog.py` and `calculator.py` (each tool separated and self-caching via `@adaptive_cache`).
+  * `simplified/agent/`: `prompts.py` (prompt templates isolated) and `agent.py` (clean execution logic).
+  * `simplified/demo.py`: 3-part runnable viva demonstration.
+  * `simplified/README.md`: viva reference guide.
+- [x] Zero overengineering: No Pydantic, no FastAPI, no complex networking dependencies — 100% Python Standard Library.
+- [x] Verified execution: `python simplified/demo.py` passes all 3 demos cleanly.
+
+=== STEP TRACKING: DECOUPLING DECORATOR.PY FROM TOOL EXECUTOR ===
+- Removed inverted dependency where `src/agent/executor.py` was importing `get_shared_manager` and `set_shared_manager` from `decorator.py`.
+- Moved application-wide default CacheManager singleton ownership to `src/cache/manager.py` (`get_default_cache_manager`, `set_default_cache_manager`, `reset_default_cache_manager`).
+- Decoupled `src/api/dependencies.py` so it resolves from `src/cache/manager.py` without importing `decorator.py`.
+- Preserved `decorator.py` strictly as an ergonomic decorator (`@adaptive_cache`) for wrapping functions.
+- Verified: Both direct decorated tool calls and Agent chat invocations share unified memory pool and hit rate metrics with zero leaky imports.
+
+
+=== STEP TRACKING: CLEANED DECORATOR.PY IMPORTS & ALIASES ===
+- Cleaned up leftover backward-compatibility aliases (`get_shared_manager`, `set_shared_manager`, `reset_shared_manager`) from `src/cache/decorator.py`.
+- `decorator.py` now only exports the `@adaptive_cache` decorator.
+- Exported cache manager singleton utilities directly from `src/cache/__init__.py` mapped to `src/cache/manager.py`.
+- Verified decorator and agent execution with Python test script.
+
+
+=== STEP TRACKING: REMOVED DYNAMIC APPLY CONFIGURATION FROM DASHBOARD ===
+- Removed dynamic config form inputs (policy selectbox, capacity slider, ttl input, window size input) and the '🔧 Apply Configuration' button from `dashboard/app.py`.
+- Replaced with read-only '🎯 Tool Cache Policies' cards highlighting that caching parameters and TTLs are configured strictly per-function via `@adaptive_cache` decorators (`search_catalog` with 300s TTL, `calculate` with permanent 0s TTL).
+- Updated `dashboard/components.py` metrics panel to clarify that tool TTLs are decorator-enforced.
+- Preserved '🗑️ Clear Cache' control for demonstration and reset flows.
+
+
+=== STEP TRACKING: GENERAL CACHE + PER-FUNCTION TTL & STATS BREAKDOWN ===
+- Updated `CacheManager` in `src/cache/manager.py` to track both general cache pool metrics (policy, capacity, size, evictions, total hits/misses) and per-function telemetry (`_collect_function_stats`).
+- Added per-function configured TTLs, hits, misses, hit rate, and active cached key counts to `CacheManager.stats()`.
+- Added `FunctionStatsSchema` to `src/api/schemas.py` for Pydantic v2 validation under `StatsResponseSchema`.
+- Updated `dashboard/components.py` to render two clean sections:
+  1. '🌐 General Cache (Shared Pool)': Overall hit rate, capacity, size, evictions, and adaptive policy states.
+  2. '🎯 Per-Function Cache & TTL Breakdown': Metric cards and a structured overview table showing each decorated function's exact configured TTL (`search_catalog`: 300s, `calculate`: Permanent 0s), hits, misses, hit rate, and cached keys.
+- Verified: Both direct calls and HTTP GET /stats return full general + per-function telemetry.
+
+
+=== STEP TRACKING: CLEANED ARCHITECTURE — LEVERAGING DECORATOR FUNCTION_STATS ===
+- Acknowledged user critique: `function_stats` was already built directly on `_CachedFunction` in `decorator.py`.
+- Removed redundant telemetry tracking and `DEFAULT_REGISTRY` coupling from `src/cache/manager.py`. `CacheManager` strictly handles L2 cache pool telemetry.
+- Enhanced `function_stats()` in `src/cache/decorator.py` to include `ttl_seconds` and current `cached_entries`. Added `reset_stats()`.
+- Wired `GET /stats` in `src/api/routers/cache.py` (L5) to combine L2 `cache_mgr.stats()` (General Pool) with L3 `tool.func.function_stats()` (Per-Function Breakdown).
+- Verified: Both direct decorator queries and HTTP GET /stats work seamlessly without layer violations.
+

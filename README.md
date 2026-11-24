@@ -6,15 +6,24 @@ An intelligent, multi-policy caching system with an LLM-powered agent, benchmark
 
 The system wraps tool calls (database queries, calculations, etc.) behind a **smart cache** that can switch between eviction policies — LRU, LFU, or an Adaptive strategy that picks the best one on the fly — and benchmarks them against repeatable workloads.
 
+> 🎓 **Academic / Viva Submission Note**:  
+> For evaluation, a simplified, zero-dependency version with zero overengineering (no Pydantic, no complex routers) using **pure Python standard library** is located in [`simplified/`](file:///Users/abhishekbane/Desktop/Projects/Adaptive_Cache_Management/simplified/).  
+> Run it directly with: `python simplified/demo.py`
+
 ## Layered Architecture & Modular Directory Structure
 
 ```
 Adaptive_Cache_Management/
 ├── .venv/                         # uv virtual environment
+├── simplified/                    # Zero-dependency, simplified 15-mark academic version
+│   ├── cache.py                   #   Pure LRU, LFU, and Adaptive algorithms
+│   ├── decorator.py               #   @adaptive_cache decorator
+│   ├── agent.py                   #   Agent with self-caching tools
+│   ├── demo.py                    #   3-part live examiner demo script
+│   └── README.md                  #   Viva explanation and examiner reference
 ├── src/                           # Backend source packages (L0 - L6)
 │   ├── __init__.py                #   Backend package root and path resolution
-│   ├── config/                    #   L0: Configuration (schemas, defaults, policy enums)
-│   │   ├── __init__.py
+│   ├── config/                    #   L0: Configuration (schemas, defaults, policy enums)│   │   ├── __init__.py
 │   │   └── cache_config.py
 │   ├── models/                    #   L0: Shared dataclasses (CacheResult, ToolTrace)
 │   │   ├── __init__.py
@@ -24,18 +33,19 @@ Adaptive_Cache_Management/
 │   │   ├── base.py                #     Abstract BaseCache interface
 │   │   ├── dll.py                 #     Doubly linked list (internal helper for LRU)
 │   │   ├── metrics.py             #     Hit/miss/eviction counters
+│   │   ├── decorator.py           #     @adaptive_cache — reusable decorator for any function
 │   │   ├── lru.py                 #     LRU eviction policy
 │   │   ├── lfu.py                 #     LFU eviction policy
 │   │   ├── adaptive.py            #     Adaptive Cache (Shared storage + Shadow simulators + Reconstruction)
 │   │   └── manager.py             #     L2: Cache Manager (Key building, TTL, policy routing, stats)
 │   ├── tools/                     #   L3: Deterministic tools & SQLite catalog
 │   │   ├── __init__.py
-│   │   ├── catalog.py             #     SQLite product catalog with simulated delay
-│   │   ├── calculator.py          #     Safe arithmetic expression evaluator
+│   │   ├── catalog.py             #     SQLite product catalog with simulated delay (@adaptive_cache)
+│   │   ├── calculator.py          #     Safe arithmetic expression evaluator (@adaptive_cache)
 │   │   └── registry.py            #     Tool registry, schema discovery, and argument validation
 │   ├── agent/                     #   L4: Agent and tool executor
 │   │   ├── __init__.py
-│   │   ├── executor.py            #     ToolExecutor (cache lookup -> miss execution -> cache store)
+│   │   ├── executor.py            #     ToolExecutor (dispatches via decorated tools, gathers ToolTrace)
 │   │   ├── agent.py               #     Agent (LLM chat orchestration with automatic fallback)
 │   │   ├── fallback.py            #     Rule-based pattern matching fallback tool selector
 │   │   ├── prompts.py             #     System prompts, templates, and formatting (isolated from logic)
@@ -78,8 +88,8 @@ Adaptive_Cache_Management/
 | **L0** Shared | `src/config/`, `src/models/` | Capacity, TTL, window size, thresholds, tool delay. Dataclasses `CacheResult`, `ToolTrace`. | Pure data definitions; no logic. |
 | **L1** Cache core | `src/cache/` (dll, lru, lfu, adaptive, metrics) | Pure data structures: `get(key)`, `put(key, val)`, `keys()`, `size()`. Metrics for hits, misses, evictions. | No knowledge of tools, TTL, HTTP, or LLMs. A string key in, value out. |
 | **L2** Cache manager | `src/cache/manager.py` | Builds deterministic keys (tool + sorted JSON args), applies TTL, selects policy (NONE/LRU/LFU/ADAPTIVE), handles config updates/resets, exposes `stats()`. | Does not execute tools; answers hit/miss and stores values. |
-| **L3** Tools | `src/tools/` (catalog, calculator, registry) | SQLite catalog queries (with simulated delay), math expressions, argument validation. | Pure & deterministic; unaware of cache. |
-| **L4** Execution + Agent | `src/agent/` (executor, agent) | Cache lookup -> miss fallback -> execute -> store. LLM agent reasoning with fallback. | LLM calls isolated here. |
+| **L3** Tools | `src/tools/` (catalog, calculator, registry) | SQLite catalog queries (with simulated delay), math expressions, argument validation; self-cached via `@adaptive_cache`. | Deterministic tool execution with transparent caching. |
+| **L4** Execution + Agent | `src/agent/` (executor, agent) | Dispatches via `@adaptive_cache` decorated tools, collects `ToolTrace`. LLM agent reasoning with fallback. | LLM calls isolated here. |
 | **L5** API | `src/api/` (routers, schemas), `api.py` | `/chat`, `/stats`, `/config`, `/cache`, `/benchmark`, `/health`. | HTTP parsing and dispatch only; no business logic. |
 | **L6** Benchmark | `src/benchmark/` (workloads, runner, results) | Generates Hot Keys, Sequential Scan, Phase Change workloads; replays across policies. | Repeatable; never calls LLM. |
 | **L7** Dashboard | `dashboard/app.py` | Chat view, hit/miss badges, live telemetry, and charts. | Consumes API only. |
@@ -94,6 +104,38 @@ The `AdaptiveCache` implements a **Shared Storage + Shadow Simulators + Frequenc
    - Snapshots current real cache entries along with historical metadata (`freq` and `last_access`).
    - Recreates the target cache and refills using non-traffic `_restore()`, preserving frequency counts and FIFO tie-breaking without polluting metrics.
    - Rebases shadows to maintain synchronization with real cache state.
+
+## `@adaptive_cache` Decorator — Plug-and-Play Caching
+
+The decorator wraps **any Python function** with the full Adaptive Cache system — like a production-grade `@functools.lru_cache` with TTL, multiple policies, and runtime reconfiguration.
+
+**Shared Cache by Default**: All decorated functions share a unified `CacheManager` pool, allowing cross-tool eviction, unified telemetry, and tool-specific TTL overrides.
+
+```python
+from src.cache import adaptive_cache
+
+# 1. Shared Cache (Default) — both tools share the same cache pool
+@adaptive_cache(policy="ADAPTIVE", capacity=64)
+def get_weather(city: str) -> dict:
+    return call_weather_api(city)  # expensive call
+
+@adaptive_cache(ttl=60)  # function-specific 60s TTL inside the shared cache
+def convert_currency(pair: str) -> float:
+    return fetch_exchange_rate(pair)
+
+result1 = get_weather("Mumbai")       # MISS → calls function (slow)
+result2 = get_weather("Mumbai")       # HIT  → from cache (instant)
+result3 = convert_currency("USDINR")  # MISS → shared cache tracks both
+
+get_weather.cache_stats()             # Global shared telemetry across all tools
+get_weather.function_stats()          # Per-function invocation stats
+get_weather.cache_clear()             # Reset shared cache
+
+# 2. Isolated Cache — has its own dedicated capacity pool
+@adaptive_cache(capacity=16, shared=False)
+def heavy_calculation(n: int) -> int:
+    return n ** 2
+```
 
 ## Dependency Management (`requirements.py` & `requirements.txt`)
 

@@ -134,22 +134,36 @@ class CacheManager:
         latency_ms = (time.perf_counter() - start_time) * 1000.0
         return CacheResult(key=key, value=val, hit=True, latency_ms=latency_ms)
 
-    def store(self, tool: str, args: dict[str, Any] | None, value: Any) -> None:
+    def store(
+        self,
+        tool: str,
+        args: dict[str, Any] | None,
+        value: Any,
+        ttl_seconds: float | None = None,
+    ) -> None:
         """Store a computed tool result into the cache with TTL wrapping."""
         if self._config.policy == CachePolicy.NONE or self._cache is None:
             return
 
         key = self.build_key(tool, args)
-        self.store_by_key(key, value)
+        self.store_by_key(key, value, ttl_seconds=ttl_seconds)
 
-    def store_by_key(self, key: str, value: Any) -> None:
-        """Store a value directly by its precomputed key."""
+    def store_by_key(
+        self,
+        key: str,
+        value: Any,
+        ttl_seconds: float | None = None,
+    ) -> None:
+        """Store a value directly by its precomputed key, optionally overriding TTL."""
         if self._config.policy == CachePolicy.NONE or self._cache is None:
             return
 
+        effective_ttl = (
+            ttl_seconds if ttl_seconds is not None else self._config.ttl_seconds
+        )
         expires_at = (
-            time.time() + self._config.ttl_seconds
-            if self._config.ttl_seconds > 0
+            time.time() + effective_ttl
+            if effective_ttl > 0
             else None
         )
         entry = _CacheEntry(value=value, expires_at=expires_at)
@@ -229,4 +243,35 @@ class CacheManager:
             base_stats["switch_history_count"] = len(self._cache._switch_history)
 
         return base_stats
+
+
+# Global default CacheManager singleton for application-wide unified caching
+_DEFAULT_CACHE_MANAGER: CacheManager | None = None
+
+
+def get_default_cache_manager(config: CacheConfig | None = None) -> CacheManager:
+    """
+    Get or initialize the global shared CacheManager singleton.
+
+    If not yet created, creates one using the provided config (or default_config).
+    """
+    global _DEFAULT_CACHE_MANAGER
+    if _DEFAULT_CACHE_MANAGER is None:
+        _DEFAULT_CACHE_MANAGER = CacheManager(
+            config if config is not None else default_config()
+        )
+    return _DEFAULT_CACHE_MANAGER
+
+
+def set_default_cache_manager(manager: CacheManager) -> None:
+    """Explicitly assign a shared CacheManager instance."""
+    global _DEFAULT_CACHE_MANAGER
+    _DEFAULT_CACHE_MANAGER = manager
+
+
+def reset_default_cache_manager() -> None:
+    """Reset the global default cache manager (useful for test isolation)."""
+    global _DEFAULT_CACHE_MANAGER
+    _DEFAULT_CACHE_MANAGER = None
+
 
